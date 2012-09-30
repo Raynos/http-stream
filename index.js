@@ -11,11 +11,20 @@ var http = require("http")
         , "connect"
         , "upgrade"
         , "clientError"
+        , "listening"
+        , "error"
     ]
 
     , serverMethods = [
         "listen"
         , "close"
+        , "address"
+    ]
+
+    , serverProperties = [
+        "maxHeadersCount"
+        , "maxConnections"
+        , "connections"
     ]
 
 module.exports = HttpStream
@@ -27,16 +36,26 @@ function HttpStream() {
 
     server.on("close", queue.end)
 
-    serverMethods.forEach(function (methodName) {
-        stream[methodName] = method
-
-        function method() {
-            server[methodName].apply(server, arguments)
-            return stream
-        }
-    })
+    serverMethods.forEach(addMethod)
 
     reemit(server, stream, serverEvents)
+
+    serverProperties.forEach(function addProperty(propName) {
+        Object.defineProperty(stream, propName, {
+            set: set
+            , get: get
+            , configurable: true
+            , enumerable: true
+        })
+
+        function set(value) {
+            server[propName] = value
+        }
+
+        function get() {
+            return server[propName]
+        }
+    })
 
     return stream
 
@@ -44,5 +63,14 @@ function HttpStream() {
         var dup = httpDuplex(req, res)
 
         queue.push(dup)
+    }
+
+    function addMethod(methodName) {
+        stream[methodName] = method
+
+        function method() {
+            server[methodName].apply(server, arguments)
+            return stream
+        }
     }
 }
